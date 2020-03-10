@@ -46,6 +46,9 @@ const query = {
 };
 pgClient.query(query)
 .catch(err => {
+  err.code === '42P01';
+  err.C    === '42P01';
+  
   throw new PSQLError(err, query);
 });
 ```
@@ -83,6 +86,9 @@ QUERY:  {
 `options`                  | object           | *(optional)* See options below.
 
 ```javascript
+new PSQLError({message: '...', severity: '...', code: '...'});
+new PSQLError({M: '...', S: '...', C: '...'});
+new PSQLError(pgError);
 new PSQLError(pgError, query);
 new PSQLError(pgError, query, {hideQueryValues: true});
 new PSQLError(pgError, {text: query, values});
