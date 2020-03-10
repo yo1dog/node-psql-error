@@ -1,6 +1,6 @@
 declare interface IPGResult {
- errorFieldsObj: IPSQLErrorFields;
- queryText     : string | null;
+ errFieldsObj: IPSQLErrorFields;
+ queryText   : string | null;
 }
 
 declare module 'wcwidth.js' {
