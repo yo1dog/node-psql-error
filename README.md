@@ -89,27 +89,19 @@ new PSQLError(pgError, {text: query, values});
 ```
 
 
-### `PSQLError.prototype.resetMessage([options])`
-
- param    | type   | description
-----------|--------|-------------
-`options` | object | *(optional)* See options below.
-
-Recreates and resets the error's message with the given options. Useful if you want to alter the message after the `PSQLError` instance has been created. For example, if you want to change the verbosity or remove the full query.
-
-```javascript
-const psqlError = new PSQLError(pgError, query);
-console.error(psqlError); // message includes query values
-psqlError.resetMessage({hideQueryValues: true});
-console.error(psqlError); // message does not include query values
-```
-
-
 ### `PSQLError.createMessage(errFieldsObj, [query, [options]])`
 
 Parameters are the same as the constructor.
 
 Creates and returns an error message. Useful if you want to create the error message without creating a `PSQLError` instance. Used internally by the `PSQLError` constructor.
+
+You can recreate a `PSQLError` instance's message with different options like so:
+```javascript
+const psqlError = new PSQLError(pgError, query); // message contains query values
+PSQLError.createMessage(psqlError, psqlError.query, {hideQueryValues: true}) // message does not contain query values
+// OR
+new PSQLError(psqlError, psqlError.query, {hideQueryValues: true});
+```
 
 
 ### Options

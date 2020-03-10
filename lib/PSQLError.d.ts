@@ -38,13 +38,6 @@ export class PSQLError extends ExtendableError implements IPSQLErrorFields {
   public origErrFieldsObj: Error | Partial<IPSQLErrorFields>;
   
   /**
-   * Recreates and resets the error's message with the given options. Useful if you
-   * want to alter the message after the `PSQLError` instance has been created. For
-   * example, if you want to change the verbosity or remove the full query.
-   */
-  public resetMessage(options?: IPSQLErrorMessageOptions | null): this;
-  
-  /**
    * Creates and returns an error message. Useful if you want to create the error
    * message without creating a `PSQLError` instance. Used internally by the
    * `PSQLError` constructor.
