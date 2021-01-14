@@ -1,5 +1,6 @@
 import pgBuildErrorMessage3 from './translated/pgBuildErrorMessage3';
 import {PGContextVisibility, PGVerbosity, PGFieldCode} from './translated/psqlConst';
+import psqlErrorCodeDict, {PGCodeCondition} from './psqlErrorCodeDict';
 import {inspect} from 'util';
 
 const ERROR_FIELD_TOKEN_NAME_PAIRS: [PGFieldCode, keyof IPSQLErrorFields][] = [
@@ -24,46 +25,36 @@ const ERROR_FIELD_TOKEN_NAME_PAIRS: [PGFieldCode, keyof IPSQLErrorFields][] = [
 ];
 
 
-class PSQLError<T extends Error | Partial<IPSQLErrorFields>> extends Error implements IPSQLErrorFields {
-  public severity!: string | null;
-  public S!: string | null;
-  public severityNonlocalized!: string | null;
-  public V!: string | null;
-  public code!: string | null;
-  public C!: string | null;
-  public M!: string | null;
-  public detail!: string | null;
-  public D!: string | null;
-  public hint!: string | null;
-  public H!: string | null;
-  public position!: string | null;
-  public P!: string | null;
-  public internalPosition!: string | null;
-  public p!: string | null;
-  public internalQuery!: string | null;
-  public q!: string | null;
-  public where!: string | null;
-  public W!: string | null;
-  public schema!: string | null;
-  public s!: string | null;
-  public table!: string | null;
-  public t!: string | null;
-  public column!: string | null;
-  public c!: string | null;
-  public dataType!: string | null;
-  public d!: string | null;
-  public constraint!: string | null;
-  public n!: string | null;
-  public file!: string | null;
-  public F!: string | null;
-  public line!: string | null;
-  public L!: string | null;
-  public routine!: string | null;
-  public R!: string | null;
+export class PSQLError<T extends Error | Partial<IPSQLErrorFields>> extends Error implements IPSQLErrorFields {
+  public severity            !: string | null; public S!: string | null;
+  public severityNonlocalized!: string | null; public V!: string | null;
+  public code                !: string | null; public C!: string | null;
+  /*public mesasge           !: string;*/      public M!: string | null; 
+  public detail              !: string | null; public D!: string | null;
+  public hint                !: string | null; public H!: string | null;
+  public position            !: string | null; public P!: string | null;
+  public internalPosition    !: string | null; public p!: string | null;
+  public internalQuery       !: string | null; public q!: string | null;
+  public where               !: string | null; public W!: string | null;
+  public schema              !: string | null; public s!: string | null;
+  public table               !: string | null; public t!: string | null;
+  public column              !: string | null; public c!: string | null;
+  public dataType            !: string | null; public d!: string | null;
+  public constraint          !: string | null; public n!: string | null;
+  public file                !: string | null; public F!: string | null;
+  public line                !: string | null; public L!: string | null;
+  public routine             !: string | null; public R!: string | null;
   
-   /** Query that caused the error. */
-   public query!: IQuery;
-   /**
+  /**
+   * PSQL condition name for the error code.
+   * 
+   * https://www.postgresql.org/docs/13/errcodes-appendix.html
+   */
+  public codeCondition!: PGCodeCondition | null;
+  
+  /** Query that caused the error. */
+  public query!: IQuery;
+  /**
    * **!! beta. Consider unstable. !!** Details about the query position reported in the
    * error. This field may be null in unexpected situations. It is only set when the
    * verbosity is `PQERRORS_VERBOSE`.
@@ -108,6 +99,7 @@ class PSQLError<T extends Error | Partial<IPSQLErrorFields>> extends Error imple
       Object.defineProperty(this, key, {enumerable: false, value: errFieldsObj[key as keyof IPSQLErrorFields]});
     }
     
+    Object.defineProperty(this, 'codeCondition', {enumerable: false, value: errFieldsObj.code? psqlErrorCodeDict[errFieldsObj.code] : null});
     Object.defineProperty(this, 'query', {enumerable: false, value: query});
     Object.defineProperty(this, 'queryPositionDetail', {enumerable: false, value: (!meta.isInternalQuery && meta.queryPositionDetail) || null});
     Object.defineProperty(this, 'errFieldsObj', {enumerable: false, value: errFieldsObj});
@@ -117,6 +109,7 @@ class PSQLError<T extends Error | Partial<IPSQLErrorFields>> extends Error imple
   static PGContextVisibility = PGContextVisibility;
   static PGVerbosity = PGVerbosity;
   static PGFieldCode = PGFieldCode;
+  static PGCodeCondition = PGCodeCondition;
   
   /**
    * Creates and returns an error message. Useful if you want to create the error
@@ -155,36 +148,36 @@ class PSQLError<T extends Error | Partial<IPSQLErrorFields>> extends Error imple
       meta
     ).trimRight() || (origErrFieldsObj && toNullableString(origErrFieldsObj.message)) || errFieldsObj.M || '';
     
-    let formatedQuery: IQuery | null = null;
+    let queryMsg;
+    let valuesMsg;
     if (!hideQuery && query) {
       if (!hideQueryText && typeof query.text !== 'undefined') {
-        formatedQuery = formatedQuery || {};
-        formatedQuery.text = query.text;
+        queryMsg = buildQueryTextMessage(query.text, meta);
       }
       if (!hideQueryValues && typeof query.values !== 'undefined') {
-        formatedQuery = formatedQuery || {};
-        formatedQuery.values = query.values;
+        valuesMsg = buildQueryValuesMessage(query.values);
       }
     }
     
     let msg = errorMsg;
-    if (formatedQuery) {
-      msg += `\nQUERY:  ${inspect(formatedQuery)}`;
+    if (queryMsg) {
+      msg += '\n' + queryMsg;
     }
-    
+    if (valuesMsg) {
+      if (queryMsg) msg += '\n';
+      msg += '\n' + valuesMsg;
+    }
     return msg;
   }
 }
-
-module.exports = PSQLError;
 
 
 function formatErrorFieldsObj(origErrFieldsObj: any): IPSQLErrorFields {
   const errFieldsObj: Partial<IPSQLErrorFields> = {};
   
   for (const [token, name] of ERROR_FIELD_TOKEN_NAME_PAIRS) {
-    const tokenVal = origErrFieldsObj? toNullableString([token]) : null;
-    const nameVal  = origErrFieldsObj? toNullableString([name ]) : null;
+    const tokenVal = origErrFieldsObj? toNullableString(origErrFieldsObj[token]) : null;
+    const nameVal  = origErrFieldsObj? toNullableString(origErrFieldsObj[name ]) : null;
     const val = tokenVal !== null? tokenVal : nameVal;
     
     errFieldsObj[token] = val;
@@ -209,6 +202,46 @@ function formatQuery(query: any): IQuery {
   return {};
 }
 
+function buildQueryTextMessage(text: string | null, meta?: IPSQLErrorMessageMeta | null) {
+  let msg = `QUERY:`;
+  if (typeof text !== 'string' || text.length === 0) {
+    return msg + '  ' + inspect(text);
+  }
+  
+  const lines = text.replace(/\t/g, ' ').split(/\r\n|\r|\n/);
+  const maxLineNumStrLen = lines.length.toString().length;
+  const queryPositionDetail = meta && meta.queryPositionDetail;
+  
+  for (let i = 0; i < lines.length; ++i) {
+    msg += '\n';
+    
+    const lineNumStr = (i + 1).toString();
+    const numPadding = maxLineNumStrLen - lineNumStr.length;
+    if (numPadding > 0) {
+      msg += ' '.repeat(numPadding);
+    }
+    msg += ' ' + lineNumStr + ': ' + lines[i];
+    
+    if (queryPositionDetail && i === queryPositionDetail.lineNum - 1) {
+      msg += (
+        '\n '
+        + '═'.repeat(
+          maxLineNumStrLen
+          + 1 // ':'
+          + 1 // ' '
+          + queryPositionDetail.screenCol
+        )
+        + '╛'
+      );
+    }
+  }
+  
+  return msg;
+}
+function buildQueryValuesMessage(values: unknown) {
+   return `VALUES:  ${inspect(values)}`;
+}
+
 function toNullableString(val: unknown) {
   if (typeof val === 'undefined' || val === null) {
     return null;
@@ -230,13 +263,13 @@ export interface IQuery {
 
 export interface IPSQLErrorMessageOptions {
   /**
-   * Level of verbosity. Use one of `PSQLError.psqlConst.PQERRORS_*`. Defaults to
+   * Level of verbosity. Use one of `PSQLError.PGVerbosity.*`. Defaults to
    * `PQERRORS_VERBOSE`.
    */
   verbosityLevel?: PGVerbosity | null;
   /**
    * When to show context in the error message. Use one of
-   * `PSQLError.psqlConst.PQSHOW_CONTEXT_*`. Defaults to `PQSHOW_CONTEXT_NEVER`.
+   * `PSQLError.PGContextVisibility.*`. Defaults to `PQSHOW_CONTEXT_NEVER`.
    * 
    * **NOTE:** `pg` does not currently support the `V` (Nonlocalized Severity) field.
    * Further, this field is only returned by PostgreSQL server 9.6 and up. This field
@@ -284,6 +317,11 @@ export interface IQueryPositionDetail {
   unitIndex: number;
   /** Character offset of the target. */
   pointIndex: number;
+  /**
+   * The screen column the target visually appears on when rendered to console. Assumes tabs have
+   * been replaced with single spaces.
+   */
+  screenCol: number;
   
   /** Index of the first character of the line the target is on. */
   lineStartUnitIndex: number;

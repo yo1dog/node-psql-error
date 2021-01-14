@@ -1,7 +1,7 @@
 // translated from ../../original/reportErrorPosition.c
 /* eslint-disable @typescript-eslint/naming-convention */
 import wcwidth from 'wcwidth.js';
-import {IPSQLErrorMessageMeta} from '../PSQLError';
+import {IPSQLErrorMessageMeta} from '../psqlError';
 
 
 export default function reportErrorPosition(
@@ -118,6 +118,7 @@ export default function reportErrorPosition(
       charNum            : loc_char,
       unitIndex          : qidx[loc],
       pointIndex         : loc,
+      screenCol          : scridx[loc] - scridx[ibeg],
       lineStartUnitIndex : qidx[ibeg],
       lineStartPointIndex: ibeg,
       lineEndUnitIndex   : qidx[iend],

@@ -1,5 +1,5 @@
 // translated from ../../original/pqBuildErrorMessage3.c
-import {IPSQLErrorFields, IPSQLErrorMessageMeta} from '../PSQLError';
+import {IPSQLErrorFields, IPSQLErrorMessageMeta} from '../psqlError';
 import {PGContextVisibility, PGVerbosity, PGFieldCode} from './psqlConst';
 import reportErrorPosition from './reportErrorPosition';
 
