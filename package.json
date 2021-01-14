@@ -1,6 +1,6 @@
 {
   "name": "@yo1dog/psql-error",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "PSQL Error",
   "type": "commonjs",
   "main": "dist/psqlError.js",
