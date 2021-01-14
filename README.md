@@ -2,6 +2,10 @@
 
 Better PostgreSQL errors.
 
+```
+npm install @yo1dog/psql-error
+```
+
 This library creates PostgreSQL errors with messages that emulate the `psql` client. In fact, the code for generating the error messages is translated directly from the [psql C source code](https://github.com/postgres/postgres/blob/c9d29775195922136c09cc980bb1b7091bf3d859/src/interfaces/libpq/fe-protocol3.c#L985) with minimal modifications.
 
 `PSQLError` can be used to wrap errors returned by `pg` and has the same interface/keys as `pg` errors for compatibility. It provides access to the [PostgreSQL error message fields](https://www.postgresql.org/docs/12/protocol-error-fields.html) for identifiable errors via both human readable keys (same as `pg` errors) and the single-byte identification token. This includes error code, table name, column name, constraint name, detail message, hint message, etc. 
@@ -30,10 +34,6 @@ QUERY:  {
 
 ## Quick Start
 
-```
-npm install @yo1dog/psql-error
-```
-
 ```javascript
 const PSQLError = require('@yo1dog/psql-error');
 
@@ -46,10 +46,10 @@ const query = {
 };
 pgClient.query(query)
 .catch(err => {
-  err.code === '42P01';
-  err.C    === '42P01';
-  
-  throw new PSQLError(err, query);
+  const psqlErr = new PSQLError(err, query);
+  // psqlErr.code === '42P01';
+  // psqlErr.C    === '42P01';
+  throw psqlErr;
 });
 ```
 
@@ -114,8 +114,8 @@ new PSQLError(psqlError, psqlError.query, {hideQueryValues: true});
 
 key                | type             | description
 -------------------|------------------|------------
-`verbosityLevel`   | number           | Level of verbosity. Use one of `PSQLError.psqlConst.PQERRORS_*`. Defaults to `PQERRORS_VERBOSE`.
-`showContextLevel` | number           | When to show context in the error message. Use one of `PSQLError.psqlConst.PQSHOW_CONTEXT_*`. Defaults to `PQSHOW_CONTEXT_ERRORS`. See note bellow.
+`verbosityLevel`   | number           | Level of verbosity. Use one of `PSQLError.PGVerbosity.*`. Defaults to `PQERRORS_VERBOSE`.
+`showContextLevel` | number           | When to show context in the error message. Use one of `PSQLError.PGContextVisibility.*`. Defaults to `PQSHOW_CONTEXT_ERRORS`. See note bellow.
 `hideQueryText`    | boolean          | If the full query text should not be shown in error message. Defaults to false.
 `hideQueryValues`  | boolean          | If the query values should not be shown in error message. Defaults to false.
 `hideQuery`        | boolean          | If the full query should not be shown in error message. Equivalent to setting both `hideQueryText` and `hideQueryValues` to true. Defaults to false.
@@ -136,7 +136,7 @@ key                   | type   | docs
 
 All of the PostgreSQL error message fields can be accessed via either human readable keys or the single-byte identification token. This applies to both input parameters and `PSQLError` properties. These are listed below along with relevant documentation from the PostgreSQL docs. See: https://www.postgresql.org/docs/12/protocol-error-fields.html
 
-All are of type `string`. 
+All are of type `string` and can be `null`.
 
 human                  | token | docs
 -----------------------|-------|-----

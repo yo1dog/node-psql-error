@@ -1,15 +1,14 @@
 // translated from ../../original/pqBuildErrorMessage3.c
-const psqlConst = require('./psqlConst');
-const reportErrorPosition = require('./reportErrorPosition');
+import {IPSQLErrorFields, IPSQLErrorMessageMeta} from '../PSQLError';
+import {PGContextVisibility, PGVerbosity, PGFieldCode} from './psqlConst';
+import reportErrorPosition from './reportErrorPosition';
 
-/**
- * @param {IPGResult} res
- * @param {PSQLErrorVerbosityLevel} verbosity
- * @param {PSQLErrorContextLevel} showContext
- * @param {Object<string, any> | null} [meta]
- * @returns {string}
- */
-module.exports = function pgBuildErrorMessage3(res, verbosity, showContext, meta) {
+export default function pgBuildErrorMessage3(
+  res: IPGResult,
+  verbosity: PGVerbosity,
+  showContext: PGContextVisibility,
+  meta?: IPSQLErrorMessageMeta | null
+): string {
   let msg = '';
   
   /** @type {string | null} */ let val = null;
@@ -32,35 +31,35 @@ module.exports = function pgBuildErrorMessage3(res, verbosity, showContext, meta
   }
   
   // Else build error message from relevant fields
-  val = pqResultErrorField(res, psqlConst.PG_DIAG_SEVERITY);
+  val = pqResultErrorField(res, PGFieldCode.PG_DIAG_SEVERITY);
   if (val !== null) msg += `${val}:  `;
   
-  if (verbosity === psqlConst.PQERRORS_SQLSTATE) {
+  if (verbosity === PGVerbosity.PQERRORS_SQLSTATE) {
     /*
      * If we have a SQLSTATE, print that and nothing else.  If not (which
      * shouldn't happen for server-generated errors, but might possibly
      * happen for libpq-generated ones), fall back to TERSE format, as
      * that seems better than printing nothing at all.
      */
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_SQLSTATE);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_SQLSTATE);
     if (val) {
       msg += `${val}\n`;
       return msg;
     }
-    verbosity = psqlConst.PQERRORS_TERSE;
+    verbosity = PGVerbosity.PQERRORS_TERSE;
   }
   
-  if (verbosity === psqlConst.PQERRORS_VERBOSE) {
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_SQLSTATE);
+  if (verbosity === PGVerbosity.PQERRORS_VERBOSE) {
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_SQLSTATE);
     if (val !== null) msg += `${val}:  `;
   }
   
-  val = pqResultErrorField(res, psqlConst.PG_DIAG_MESSAGE_PRIMARY);
+  val = pqResultErrorField(res, PGFieldCode.PG_DIAG_MESSAGE_PRIMARY);
   if (val !== null) msg += val;
   
-  val = pqResultErrorField(res, psqlConst.PG_DIAG_STATEMENT_POSITION);
+  val = pqResultErrorField(res, PGFieldCode.PG_DIAG_STATEMENT_POSITION);
   if (val !== null) {
-    if (verbosity !== psqlConst.PQERRORS_TERSE && res.queryText !== null) {
+    if (verbosity !== PGVerbosity.PQERRORS_TERSE && res.queryText !== null) {
       // emit position as a syntax cursor display
       queryText = res.queryText;
       queryPos = parseInt(val, 10);
@@ -71,13 +70,13 @@ module.exports = function pgBuildErrorMessage3(res, verbosity, showContext, meta
     }
   }
   else {
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_INTERNAL_POSITION);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_INTERNAL_POSITION);
     if (val !== null) {
       // NOTE: start customization
       if (meta) meta.isInternalQuery = true;
       // NOTE: end customization
-      queryText = pqResultErrorField(res, psqlConst.PG_DIAG_INTERNAL_QUERY);
-      if (verbosity !== psqlConst.PQERRORS_TERSE && queryText !== null) {
+      queryText = pqResultErrorField(res, PGFieldCode.PG_DIAG_INTERNAL_QUERY);
+      if (verbosity !== PGVerbosity.PQERRORS_TERSE && queryText !== null) {
         // emit position as a syntax cursor display
         queryPos = parseInt(val, 10);
       }
@@ -90,63 +89,63 @@ module.exports = function pgBuildErrorMessage3(res, verbosity, showContext, meta
   
   msg += '\n';
   
-  if (verbosity !== psqlConst.PQERRORS_TERSE) {
+  if (verbosity !== PGVerbosity.PQERRORS_TERSE) {
     if (queryText && queryPos > 0) {
       msg += (reportErrorPosition(queryText, queryPos, meta) || '');
     }
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_MESSAGE_DETAIL);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_MESSAGE_DETAIL);
     if (val !== null) msg += `DETAIL:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_MESSAGE_HINT);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_MESSAGE_HINT);
     if (val !== null) msg += `HINT:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_INTERNAL_QUERY);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_INTERNAL_QUERY);
     if (val !== null) msg += `QUERY:  ${val}\n`;
     
     if (
-      showContext === psqlConst.PQSHOW_CONTEXT_ALWAYS || (
-        showContext === psqlConst.PQSHOW_CONTEXT_ERRORS &&
+      showContext === PGContextVisibility.PQSHOW_CONTEXT_ALWAYS || (
+        showContext === PGContextVisibility.PQSHOW_CONTEXT_ERRORS &&
         // NOTE: We do not have reliable acess to the result status or severity. PG_DIAG_SEVERITY
         // may be localized and PG_DIAG_SEVERITY_NONLOCALIZED is only set by PostgreSQL 9.6 and up
         // and is not currently exposed in pg errors.
         // We will differ from the original functionality and show context if
         // PG_DIAG_SEVERITY_NONLOCALIZED is 'FATAL' or NULL
         (
-          pqResultErrorField(res, psqlConst.PG_DIAG_SEVERITY_NONLOCALIZED) === 'FATAL' ||
-          pqResultErrorField(res, psqlConst.PG_DIAG_SEVERITY_NONLOCALIZED) === null
+          pqResultErrorField(res, PGFieldCode.PG_DIAG_SEVERITY_NONLOCALIZED) === 'FATAL' ||
+          pqResultErrorField(res, PGFieldCode.PG_DIAG_SEVERITY_NONLOCALIZED) === null
         )
       )
     ) {
-      val = pqResultErrorField(res, psqlConst.PG_DIAG_CONTEXT);
+      val = pqResultErrorField(res, PGFieldCode.PG_DIAG_CONTEXT);
       if (val !== null) msg += `CONTEXT:  ${val}\n`;
     }
   }
   
-  if (verbosity === psqlConst.PQERRORS_VERBOSE) {
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_SCHEMA_NAME);
+  if (verbosity === PGVerbosity.PQERRORS_VERBOSE) {
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_SCHEMA_NAME);
     if (val !== null) msg += `SCHEMA NAME:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_TABLE_NAME);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_TABLE_NAME);
     if (val !== null) msg += `TABLE NAME:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_COLUMN_NAME);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_COLUMN_NAME);
     if (val !== null) msg += `COLUMN NAME:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_DATATYPE_NAME);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_DATATYPE_NAME);
     if (val !== null) msg += `DATATYPE NAME:  ${val}\n`;
     
-    val = pqResultErrorField(res, psqlConst.PG_DIAG_CONSTRAINT_NAME);
+    val = pqResultErrorField(res, PGFieldCode.PG_DIAG_CONSTRAINT_NAME);
     if (val !== null) msg += `CONSTRAINT NAME:  ${val}\n`;
   }
   
-  if (verbosity === psqlConst.PQERRORS_VERBOSE) {
+  if (verbosity === PGVerbosity.PQERRORS_VERBOSE) {
     /** @type {string | null} */ let valf = null;
     /** @type {string | null} */ let vall = null;
     
-    valf = pqResultErrorField(res, psqlConst.PG_DIAG_SOURCE_FILE);
-    vall = pqResultErrorField(res, psqlConst.PG_DIAG_SOURCE_LINE);
-    val  = pqResultErrorField(res, psqlConst.PG_DIAG_SOURCE_FUNCTION);
+    valf = pqResultErrorField(res, PGFieldCode.PG_DIAG_SOURCE_FILE);
+    vall = pqResultErrorField(res, PGFieldCode.PG_DIAG_SOURCE_LINE);
+    val  = pqResultErrorField(res, PGFieldCode.PG_DIAG_SOURCE_FUNCTION);
     
     if (val !== null || valf !== null || vall !== null) {
       msg += 'LOCATION:  ';
@@ -161,14 +160,14 @@ module.exports = function pgBuildErrorMessage3(res, verbosity, showContext, meta
   }
   
   return msg;
-};
+}
 
-/**
- * @param {IPGResult} res 
- * @param {string} fieldCode 
- * @returns {string | null}
- */
-function pqResultErrorField(res, fieldCode) {
+function pqResultErrorField(res: IPGResult, fieldCode: PGFieldCode) {
   if (!res) return null;
   return res.errFieldsObj[fieldCode];
+}
+
+export interface IPGResult {
+ errFieldsObj: IPSQLErrorFields;
+ queryText: string | null;
 }

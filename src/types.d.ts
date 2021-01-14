@@ -1,8 +1,4 @@
-declare interface IPGResult {
- errFieldsObj: IPSQLErrorFields;
- queryText   : string | null;
-}
-
+/* eslint-disable @typescript-eslint/unified-signatures */
 declare module 'wcwidth.js' {
   function wcwidth(str: string): number;
   function wcwidth(codePoint: number): number;

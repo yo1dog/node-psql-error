@@ -1,14 +1,14 @@
 // translated from ../../original/reportErrorPosition.c
-const wcwidth = require('wcwidth.js');
+/* eslint-disable @typescript-eslint/naming-convention */
+import wcwidth from 'wcwidth.js';
+import {IPSQLErrorMessageMeta} from '../PSQLError';
 
 
-/**
- * @param {string} query
- * @param {number} loc
- * @param {Object<string, any> | null} [meta]
- * @returns {string | null}
- */
-module.exports = function reportErrorPosition(query, loc, meta) {
+export default function reportErrorPosition(
+  query: string,
+  loc: number,
+  meta?: IPSQLErrorMessageMeta | null
+) {
   // NOTE: JavaScript uses UTF-16 strings
   
   const DISPLAY_SIZE  = 60; // screen width limit, in screen cols
@@ -211,41 +211,21 @@ module.exports = function reportErrorPosition(query, loc, meta) {
   }
   
   return null;
-};
+}
 
-/**
- * @param {string} str 
- * @param {number} index 
- * @returns {number}
- */
-function pg_encoding_dsplen(str, index) {
+function pg_encoding_dsplen(str: string, index: number) {
   return pg_utf_dsplen(str, index);
 }
 
-/**
- * @param {string} str 
- * @param {number} index 
- * @returns {number}
- */
-function pg_utf_dsplen(str, index) {
+function pg_utf_dsplen(str: string, index: number) {
   return wcwidth(str.codePointAt(index) || 0);
 }
 
-/**
- * @param {string} str 
- * @param {number} index 
- * @returns {number}
- */
-function pg_encoding_mblen(str, index) {
+function pg_encoding_mblen(str: string, index: number) {
   return isSurrogatePair(str, index)? 2 : 1;
 }
 
-/**
- * @param {string} str 
- * @param {number} index 
- * @returns {boolean}
- */
-function isSurrogatePair(str, index) {
+function isSurrogatePair(str: string, index: number) {
   if (index > str.length - 2) return false;
   const codeUnit1 = str.charCodeAt(index);
   const codeUnit2 = str.charCodeAt(index + 1);
