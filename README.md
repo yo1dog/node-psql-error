@@ -6,9 +6,9 @@ Better PostgreSQL errors.
 npm install @yo1dog/psql-error
 ```
 
-This library creates PostgreSQL errors with messages that emulate the `psql` client. In fact, the code for generating the error messages is translated directly from the [psql C source code](https://github.com/postgres/postgres/blob/c9d29775195922136c09cc980bb1b7091bf3d859/src/interfaces/libpq/fe-protocol3.c#L985) with minimal modifications.
+This library creates PostgreSQL errors with messages that emulate the `psql` client. In fact, the code for generating the error messages is translated directly from the [psql C source code](https://github.com/postgres/postgres/blob/REL_13_STABLE/src/interfaces/libpq/fe-protocol3.c#L985) with minimal modifications.
 
-`PSQLError` can be used to wrap errors returned by `pg` and has the same interface/keys as `pg` errors for compatibility. It provides access to the [PostgreSQL error message fields](https://www.postgresql.org/docs/12/protocol-error-fields.html) for identifiable errors via both human readable keys (same as `pg` errors) and the single-byte identification token. This includes error code, table name, column name, constraint name, detail message, hint message, etc. 
+`PSQLError` can be used to wrap errors returned by `pg` and has the same interface/keys as `pg` errors for compatibility. It provides access to the [PostgreSQL error message fields](https://www.postgresql.org/docs/13/protocol-error-fields.html) for identifiable errors via both human readable keys (same as `pg` errors) and the single-byte identification token. This includes error code, table name, column name, constraint name, detail message, hint message, etc. 
 
 You can also include the query that caused the error. This allows `PSQLError` to capture and display information related to the query. For example, the offending snippet of the query can be included in the error message along with the line and character location.
 

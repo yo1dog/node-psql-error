@@ -1,4 +1,4 @@
-// source: https://github.com/postgres/postgres/blob/c9d29775195922136c09cc980bb1b7091bf3d859/src/interfaces/libpq/fe-protocol3.c#L985
+// source: https://github.com/postgres/postgres/blob/REL_13_STABLE/src/interfaces/libpq/fe-protocol3.c#L984
 /*
  * Construct an error message from the fields in the given PGresult,
  * appending it to the contents of "msg".
