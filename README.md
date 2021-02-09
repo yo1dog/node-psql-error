@@ -10,7 +10,7 @@ This library creates PostgreSQL errors with messages that emulate the `psql` cli
 
 `PSQLError` can be used to wrap errors returned by `pg` and has the same interface/keys as `pg` errors for compatibility. It provides access to the [PostgreSQL error message fields](https://www.postgresql.org/docs/13/protocol-error-fields.html) for identifiable errors via both human readable keys (same as `pg` errors) and the single-byte identification token. This includes error code, table name, column name, constraint name, detail message, hint message, etc. 
 
-Additionally, `PSQLError` maps PSQL error codes to their condition names for more human-friendly identification. This can be found here: https://www.postgresql.org/docs/13/errcodes-appendix.html#ERRCODES-TABLE
+Additionally, `PSQLError` maps PSQL error codes to their [PL/pgSQL condition names](https://www.postgresql.org/docs/13/errcodes-appendix.html#ERRCODES-TABLE) for human-friendly identification.
 
 You can also include the query that caused the error. This allows `PSQLError` to capture and display information related to the query. For example, the offending snippet of the query can be included in the error message along with the line and character location.
 
@@ -20,24 +20,24 @@ syntax error at or near "1234"
 ```
 After:
 ```
-ERROR:  42601:  syntax error at or near "1234"
+PSQLError: ERROR:  42601:  syntax error at or near "1234"
 LINE 3: CHAR 11:
 LEFT JOIN 1234 ON fu = 'bar'
           ^
-QUERY:  {
-  text: 'SELECT a, b\n' +
-    'FROM fubar\n' +
-    "LEFT JOIN 1234 ON fu = 'bar'\n' +
-    "WHERE a = $1;"
-  values: [ 'asdf' ]
-}
+LOCATION:  scanner_yyerror, scan.l:1134
+QUERY:
+ 1: SELECT a, b
+ 2: FROM fubar
+ 3: LEFT JOIN 1234 ON fu = 'bar'
+ ═════════════╛
+ 4: WHERE a = 'a';
 ```
 
 
 ## Quick Start
 
 ```javascript
-const {PSQLError} = require('@yo1dog/psql-error');
+import PSQLError from '@yo1dog/psql-error';
 
 const query = {
   text: `
@@ -46,8 +46,7 @@ const query = {
   `,
   values: ['D']
 };
-pgClient.query(query)
-.catch(err => {
+pgClient.query(query).catch(err => {
   const psqlErr = new PSQLError(err, query);
   // psqlErr.C    === '42P01';
   // psqlErr.code === '42P01';
@@ -59,17 +58,18 @@ pgClient.query(query)
 
 ```
 PSQLError: ERROR:  42P01:  relation "sometable" does not exist
-LINE 2: CHAR 21:
-      SELECT * FROM sometable
-                    ^
-LOCATION:  parserOpenTable, parse_relation.c:1160
-QUERY:  {
-  text: '\n' +
-    '      SELECT * FROM sometable\n' +
-    '      WHERE c = $1\n' +
-    '    ',
-  values: [ 'D' ]
-}
+LINE 2: CHAR 19:
+    SELECT * FROM sometable
+                  ^
+LOCATION:  parserOpenTable, parse_relation.c:1180
+QUERY:
+ 1:
+ 2:     SELECT * FROM sometable
+ ═════════════════════╛
+ 3:     WHERE c = $1
+ 4:
+
+VALUES:  [ 'D' ]
     at Object.<anonymous> (README.js:13:3)
     at processTicksAndRejections (internal/process/task_queues.js:93:5)
 ```
@@ -88,14 +88,21 @@ QUERY:  {
 `query.text`               | string           | *(optional)* Text of the query.
 `query.values`             | any[]            | *(optional)* Values used for variable substitution.
 `options`                  | object           | *(optional)* See options below.
+`options.verbosityLevel`   | number           | *(optional)* Level of verbosity. Use one of `PSQLError.PGVerbosity.*`. Defaults to `PQERRORS_VERBOSE`.
+`options.showContextLevel` | number           | *(optional)* When to show context in the error message. Use one of `PSQLError.PGContextVisibility.*`. Defaults to `PQSHOW_CONTEXT_ERRORS`. See note bellow.
+`options.hideQueryText`    | boolean          | *(optional)* If the full query text should not be shown in error message. Defaults to false.
+`options.hideQueryValues`  | boolean          | *(optional)* If the query values should not be shown in error message. Defaults to false.
+`options.hideQuery`        | boolean          | *(optional)* If the full query should not be shown in error message. Equivalent to setting both `hideQueryText` and `hideQueryValues` to true. Defaults to false.
+
+**NOTE:** `pg` does not currently support the `V` (Nonlocalized Severity) field. Further, this field is only returned by PostgreSQL server 9.6 and up. This field is used for checking if context should be shown. Therefore, if you are wraping `pg` errors or using PostgreSQL server 9.5 or lower, `PQSHOW_CONTEXT_ERRORS` will differ from the original functionality and will show context for all errors instead of only fatal ones. In these situations, `PQSHOW_CONTEXT_ERRORS` and `PQSHOW_CONTEXT_ALWAYS` are equivalent.
 
 ```javascript
-new PSQLError({message: '...', severity: '...', code: '...'});
-new PSQLError({M: '...', S: '...', C: '...'});
 new PSQLError(pgError);
 new PSQLError(pgError, query);
 new PSQLError(pgError, query, {hideQueryValues: true});
 new PSQLError(pgError, {text: query, values});
+new PSQLError({message: '...', severity: '...', code: '...'});
+new PSQLError({M: '...', S: '...', C: '...'});
 ```
 
 
@@ -107,24 +114,10 @@ Creates and returns an error message. Useful if you want to create the error mes
 
 You can recreate a `PSQLError` instance's message with different options like so:
 ```javascript
-const psqlError = new PSQLError(pgError, query); // message contains query values
-PSQLError.createMessage(psqlError, psqlError.query, {hideQueryValues: true}) // message does not contain query values
-// OR
-new PSQLError(psqlError, psqlError.query, {hideQueryValues: true});
+const psqlError = new PSQLError(pgError, query); // message will contain query values
+PSQLError.createMessage(psqlError, psqlError.query, {hideQueryValues: true}) // message will not contain query values
 ```
 
-
-### Options
-
-key                | type    | description
--------------------|---------|------------
-`verbosityLevel`   | number  | Level of verbosity. Use one of `PSQLError.PGVerbosity.*`. Defaults to `PQERRORS_VERBOSE`.
-`showContextLevel` | number  | When to show context in the error message. Use one of `PSQLError.PGContextVisibility.*`. Defaults to `PQSHOW_CONTEXT_ERRORS`. See note bellow.
-`hideQueryText`    | boolean | If the full query text should not be shown in error message. Defaults to false.
-`hideQueryValues`  | boolean | If the query values should not be shown in error message. Defaults to false.
-`hideQuery`        | boolean | If the full query should not be shown in error message. Equivalent to setting both `hideQueryText` and `hideQueryValues` to true. Defaults to false.
-
-**NOTE:** `pg` does not currently support the `V` (Nonlocalized Severity) field. Further, this field is only returned by PostgreSQL server 9.6 and up. This field is used for checking if context should be shown. Therefore, if you are wraping `pg` errors or using PostgreSQL server 9.5 or lower, `PQSHOW_CONTEXT_ERRORS` will differ from the original functionality and will show context for all errors instead of only fatal ones. In these situations, `PQSHOW_CONTEXT_ERRORS` and `PQSHOW_CONTEXT_ALWAYS` are equivalent.
 
 
 ## Properties
@@ -141,7 +134,7 @@ key                   | type   | docs
 
 All of the PostgreSQL error message fields can be accessed via either human readable keys or the single-byte identification token. This applies to both input parameters and `PSQLError` properties. These are listed below along with relevant documentation from the PostgreSQL docs. See: https://www.postgresql.org/docs/13/protocol-error-fields.html
 
-Further, `PSQLError` maps the PSQL SQLSTATE code (`C`/`code`) to its PL/pgSQL condition name and exposes it as the `codeCondition` property (defined above). This makes errors easier to identify with more human-friendly names. The available condition names can be found at `PSQLError.PGCodeCondition.*` For example, you can identify a foreign key error with `psqlErr.code === '23503'`, `psqlErr.codeCondition === 'foreign_key_violation'`, or `psqlErr.codeCondition === PSQLError.PGCodeCondition.foreign_key_violation`. However, note that there are a few codes with the same condition name. This means you can map a code to a condition name but you can not map a condition name to a single code.
+Further, `PSQLError` maps the PSQL SQLSTATE code (`C`/`code`) to its [PL/pgSQL condition name](https://www.postgresql.org/docs/13/errcodes-appendix.html#ERRCODES-TABLE) and exposes it as the `codeCondition` property (defined above). This makes errors easier to identify with more human-friendly names. The available condition names can be found at `PSQLError.PGCodeCondition.*` For example, you can identify a foreign key error with `psqlErr.code === '23503'`, `psqlErr.codeCondition === 'foreign_key_violation'`, or `psqlErr.codeCondition === PSQLError.PGCodeCondition.foreign_key_violation`. However, note that there are a few codes with the same condition name. This means you can map a code to a condition name but you can not map a condition name to a single code.
 
 All are of type `string` and can be `null`.
 
@@ -173,119 +166,206 @@ human                  | token | docs
 
 ## Examples
 
-Here are some common errors and what the `PSQLError` message looks like:
+Here are some common errors and what the `PSQLError` looks like. (Only a subset of keys are shown for readability. See above for full list of available keys.)
 
 ### 42601: syntax_error
 ```
-SELECT a, b
-FROM fubar
-LEFT JOIN 1234 ON fu = 'bar'
-WHERE a = 'a';
-```
-```
-ERROR:  42601:  syntax error at or near "1234"
+PSQLError: ERROR:  42601:  syntax error at or near "1234"
 LINE 3: CHAR 11:
 LEFT JOIN 1234 ON fu = 'bar'
           ^
-LOCATION:  scanner_yyerror, scan.l:1128
-QUERY: ...
+LOCATION:  scanner_yyerror, scan.l:1134
+QUERY:
+ 1: SELECT a, b
+ 2: FROM fubar
+ 3: LEFT JOIN 1234 ON fu = 'bar'
+ ═════════════╛
+ 4: WHERE a = 'a';
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '42601',
+  codeCondition: 'syntax_error',
+  M: 'syntax error at or near "1234"',
+  position: '34',
+  file: 'scan.l',
+  line: '1134',
+  routine: 'scanner_yyerror'
+}
 ```
 
 
 ### 42P01: undefined_table
 ```
-SELECT a, b
-FROM fubar
-WHERE a = 'a';
-```
-```
-ERROR:  42P01:  relation "fubar" does not exist
+PSQLError: ERROR:  42P01:  relation "fubar" does not exist
 LINE 2: CHAR 6:
 FROM fubar
      ^
-LOCATION:  parserOpenTable, parse_relation.c:1160
-QUERY: ...
+LOCATION:  parserOpenTable, parse_relation.c:1180
+QUERY:
+ 1: SELECT a, b
+ 2: FROM fubar
+ ════════╛
+ 3: WHERE a = 'a';
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '42P01',
+  codeCondition: 'undefined_table',
+  M: 'relation "fubar" does not exist',
+  position: '18',
+  file: 'parse_relation.c',
+  line: '1180',
+  routine: 'parserOpenTable'
+}
 ```
 
 
 ### 23502: not_null_violation
 ```
-CREATE TABLE mytable (id INT, mycol INT NOT NULL);
-INSERT INTO mytable VALUES (1, NULL);
-```
-```
-ERROR:  23502:  null value in column "mycol" violates not-null constraint
+PSQLError: ERROR:  23502:  null value in column "mycol" violates not-null constraint
 DETAIL:  Failing row contains (1, null).
-SCHEMA NAME:  public
+SCHEMA NAME:  pg_temp_3
 TABLE NAME:  mytable
 COLUMN NAME:  mycol
-LOCATION:  ExecConstraints, execMain.c:1736
-QUERY: ...
+LOCATION:  ExecConstraints, execMain.c:2042
+QUERY:
+ 1: CREATE TEMP TABLE mytable (id INT, mycol INT NOT NULL);
+ 2: INSERT INTO mytable VALUES (1, NULL);
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '23502',
+  codeCondition: 'not_null_violation',
+  M: 'null value in column "mycol" violates not-null constraint',
+  detail: 'Failing row contains (1, null).',
+  schema: 'pg_temp_3',
+  table: 'mytable',
+  column: 'mycol',
+  file: 'execMain.c',
+  line: '2042',
+  routine: 'ExecConstraints'
+}
 ```
 
 
 ### 23503: foreign_key_violation
 ```
-CREATE TABLE parenttable (id INT PRIMARY KEY);
-CREATE TABLE mytable (id INT, parent_id INT REFERENCES parenttable);
-INSERT INTO mytable VALUES (1, -10);
-```
-```
-ERROR:  23503:  insert or update on table "mytable" violates foreign key constraint "mytable_parent_id_fkey"
+PSQLError: ERROR:  23503:  insert or update on table "mytable" violates foreign key constraint "mytable_parent_id_fkey"
 DETAIL:  Key (parent_id)=(-10) is not present in table "parenttable".
-SCHEMA NAME:  public
+SCHEMA NAME:  pg_temp_3
 TABLE NAME:  mytable
 CONSTRAINT NAME:  mytable_parent_id_fkey
-LOCATION:  ri_ReportViolation, ri_triggers.c:3269
-QUERY: ...
+LOCATION:  ri_ReportViolation, ri_triggers.c:2783
+QUERY:
+ 1: CREATE TEMP TABLE parenttable (id INT PRIMARY KEY);
+ 2: CREATE TEMP TABLE mytable (id INT, parent_id INT REFERENCES parenttable(id));
+ 3: INSERT INTO mytable VALUES (1, -10);
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '23503',
+  codeCondition: 'foreign_key_violation',
+  M: 'insert or update on table "mytable" violates foreign key constraint "mytable_parent_id_fkey"',
+  detail: 'Key (parent_id)=(-10) is not present in table "parenttable".',
+  schema: 'pg_temp_3',
+  table: 'mytable',
+  constraint: 'mytable_parent_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2783',
+  routine: 'ri_ReportViolation'
+}
 ```
 
 
 ### 23505: unique_violation
 Primary Key
 ```
-CREATE TABLE mytable (id INT PRIMARY KEY);
-INSERT INTO mytable VALUES (20), (20);
-```
-```
-ERROR:  23505:  duplicate key value violates unique constraint "mytable_pkey"
+PSQLError: ERROR:  23505:  duplicate key value violates unique constraint "mytable_pkey"
 DETAIL:  Key (id)=(20) already exists.
-SCHEMA NAME:  public
+SCHEMA NAME:  pg_temp_3
 TABLE NAME:  mytable
 CONSTRAINT NAME:  mytable_pkey
-LOCATION:  _bt_check_unique, nbtinsert.c:433
-QUERY: ...
+LOCATION:  _bt_check_unique, nbtinsert.c:534
+QUERY:
+ 1: CREATE TEMP TABLE mytable (id INT PRIMARY KEY);
+ 2: INSERT INTO mytable VALUES (20), (20);
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '23505',
+  codeCondition: 'unique_violation',
+  M: 'duplicate key value violates unique constraint "mytable_pkey"',
+  detail: 'Key (id)=(20) already exists.',
+  schema: 'pg_temp_3',
+  table: 'mytable',
+  constraint: 'mytable_pkey',
+  file: 'nbtinsert.c',
+  line: '534',
+  routine: '_bt_check_unique'
+}
 ```
 
 Unique Constraint
 ```
-CREATE TABLE mytable (id INT, mycol INT UNIQUE);
-INSERT INTO mytable VALUES (1, 10), (2, 10);
-```
-```
-ERROR:  23505:  duplicate key value violates unique constraint "mytable_mycol_key"
+PSQLError: ERROR:  23505:  duplicate key value violates unique constraint "mytable_mycol_key"
 DETAIL:  Key (mycol)=(10) already exists.
-SCHEMA NAME:  public
+SCHEMA NAME:  pg_temp_3
 TABLE NAME:  mytable
 CONSTRAINT NAME:  mytable_mycol_key
-LOCATION:  _bt_check_unique, nbtinsert.c:433
-QUERY: ...
+LOCATION:  _bt_check_unique, nbtinsert.c:534
+QUERY:
+ 1: CREATE TEMP TABLE mytable (id INT, mycol INT UNIQUE);
+ 2: INSERT INTO mytable VALUES (1, 10), (2, 10);
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '23505',
+  codeCondition: 'unique_violation',
+  M: 'duplicate key value violates unique constraint "mytable_mycol_key"',
+  detail: 'Key (mycol)=(10) already exists.',
+  schema: 'pg_temp_3',
+  table: 'mytable',
+  constraint: 'mytable_mycol_key',
+  file: 'nbtinsert.c',
+  line: '534',
+  routine: '_bt_check_unique'
+}
 ```
 
 
 ### 23514: check_violation
 ```
-CREATE TABLE mytable (id INT, mycol INT CHECK (mycol > 0));
-INSERT INTO mytable VALUES (1, -30);
-```
-```
-ERROR:  23514:  new row for relation "mytable" violates check constraint "mytable_mycol_check"
+PSQLError: ERROR:  23514:  new row for relation "mytable" violates check constraint "mytable_mycol_check"
 DETAIL:  Failing row contains (1, -30).
-SCHEMA NAME:  public
+SCHEMA NAME:  pg_temp_3
 TABLE NAME:  mytable
 CONSTRAINT NAME:  mytable_mycol_check
-LOCATION:  ExecConstraints, execMain.c:1762
-QUERY: ...
+LOCATION:  ExecConstraints, execMain.c:2089
+QUERY:
+ 1: CREATE TEMP TABLE mytable (id INT, mycol INT CHECK (mycol > 0));
+ 2: INSERT INTO mytable VALUES (1, -30);
+```
+```javascript
+{
+  severity: 'ERROR',
+  code: '23514',
+  codeCondition: 'check_violation',
+  M: 'new row for relation "mytable" violates check constraint "mytable_mycol_check"',
+  detail: 'Failing row contains (1, -30).',
+  schema: 'pg_temp_3',
+  table: 'mytable',
+  constraint: 'mytable_mycol_check',
+  file: 'execMain.c',
+  line: '2089',
+  routine: 'ExecConstraints'
+}
 ```
 
 
