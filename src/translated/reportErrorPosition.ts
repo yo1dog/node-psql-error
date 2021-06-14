@@ -1,6 +1,6 @@
 // translated from ../../original/reportErrorPosition.c
 /* eslint-disable @typescript-eslint/naming-convention */
-import wcwidth from 'wcwidth.js';
+import {wcwidth} from '../wcwidth';
 import {IPSQLErrorMessageMeta} from '../psqlError';
 
 
